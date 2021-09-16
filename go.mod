@@ -36,7 +36,7 @@ require (
 	github.com/aerospike/aerospike-client-go v1.27.0
 	github.com/alecthomas/participle v0.4.1 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
-	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1004
+	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1260
 	github.com/amir/raidman v0.0.0-20170415203553-1ccc43bfb9c9
 	github.com/antchfx/jsonquery v1.1.4
 	github.com/antchfx/xmlquery v1.3.6
@@ -299,7 +299,7 @@ require (
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/gorethink/gorethink.v3 v3.0.5
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	gopkg.in/ini.v1 v1.42.0 // indirect
+	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/jcmturner/aescts.v1 v1.0.1 // indirect
 	gopkg.in/jcmturner/dnsutils.v1 v1.0.1 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.5.0 // indirect
