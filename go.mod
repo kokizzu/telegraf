@@ -37,7 +37,7 @@ require (
 	github.com/aerospike/aerospike-client-go v1.27.0
 	github.com/alecthomas/participle v0.4.1 // indirect
 	github.com/alecthomas/units v0.0.0-20210208195552-ff826a37aa15
-	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1004
+	github.com/aliyun/alibaba-cloud-sdk-go v1.61.1286
 	github.com/amir/raidman v0.0.0-20170415203553-1ccc43bfb9c9
 	github.com/antchfx/jsonquery v1.1.4
 	github.com/antchfx/xmlquery v1.3.6
