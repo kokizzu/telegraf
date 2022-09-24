@@ -3,9 +3,9 @@ module github.com/influxdata/telegraf
 go 1.19
 
 require (
-	cloud.google.com/go/bigquery v1.40.0
+	cloud.google.com/go/bigquery v1.34.1
 	cloud.google.com/go/monitoring v1.5.0
-	cloud.google.com/go/pubsub v1.25.1
+	cloud.google.com/go/pubsub v1.23.0
 	cloud.google.com/go/storage v1.23.0
 	collectd.org v0.5.0
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
@@ -171,7 +171,7 @@ require (
 	golang.org/x/text v0.3.7
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20211230205640-daad0b7ba671
 	gonum.org/v1/gonum v0.12.0
-	google.golang.org/api v0.94.0
+	google.golang.org/api v0.97.0
 	google.golang.org/genproto v0.0.0-20220916172020-2692e8806bfa
 	google.golang.org/grpc v1.49.0
 	google.golang.org/protobuf v1.28.1
@@ -188,7 +188,7 @@ require (
 require github.com/pkg/xattr v0.4.9 // indirect
 
 require (
-	cloud.google.com/go v0.104.0 // indirect
+	cloud.google.com/go v0.102.1 // indirect
 	cloud.google.com/go/compute v1.7.0 // indirect
 	cloud.google.com/go/iam v0.3.0 // indirect
 	code.cloudfoundry.org/clock v1.0.0 // indirect
@@ -278,7 +278,7 @@ require (
 	github.com/google/go-querystring v1.0.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.1.0 // indirect
-	github.com/googleapis/gax-go/v2 v2.5.1 // indirect
+	github.com/googleapis/gax-go/v2 v2.4.0 // indirect
 	github.com/googleapis/go-type-adapters v1.0.0 // indirect
 	github.com/grid-x/serial v0.0.0-20211107191517-583c7356b3aa // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
