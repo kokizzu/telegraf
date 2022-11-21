@@ -9,7 +9,7 @@ require (
 	cloud.google.com/go/storage v1.23.0
 	collectd.org v0.5.0
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.20
-	github.com/Azure/azure-kusto-go v0.8.0
+	github.com/Azure/azure-kusto-go v0.9.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/monitor/armmonitor v0.4.1
 	github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resources/armresources v0.3.1
 	github.com/Azure/azure-storage-queue-go v0.0.0-20191125232315-636801874cdd
