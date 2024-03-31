@@ -208,7 +208,7 @@ require (
 	golang.org/x/text v0.14.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20211230205640-daad0b7ba671
 	gonum.org/v1/gonum v0.15.0
-	google.golang.org/api v0.171.0
+	google.golang.org/api v0.172.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20240311132316-a219d84964c2
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
@@ -481,7 +481,7 @@ require (
 	golang.zx2c4.com/wireguard v0.0.0-20211209221555-9c9e7e272434 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20240205150955-31a09d347014 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240314234333-6e1732d8331c // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 	gopkg.in/fatih/pool.v2 v2.0.0 // indirect
 	gopkg.in/fsnotify.v1 v1.4.7 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
