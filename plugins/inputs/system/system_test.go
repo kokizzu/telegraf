@@ -1,6 +1,8 @@
 package system
 
 import (
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -8,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/influxdata/telegraf"
+	"github.com/influxdata/telegraf/config"
 	"github.com/influxdata/telegraf/metric"
 	"github.com/influxdata/telegraf/testutil"
 )
@@ -75,8 +78,8 @@ func TestInitAllValidOptions(t *testing.T) {
 		name    string
 		include []string
 	}{
-		{"new", []string{"load", "users", "cpus", "uptime"}},
-		{"legacy", []string{"load", "users", "legacy_cpus", "legacy_uptime"}},
+		{"new", []string{"load", "users", "cpus", "uptime", "os"}},
+		{"legacy", []string{"load", "users", "legacy_cpus", "legacy_uptime", "os"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -305,4 +308,52 @@ func TestGather(t *testing.T) {
 			testutil.RequireMetricsStructureEqual(t, tt.expected, actual, testutil.IgnoreTime(), testutil.SortMetrics())
 		})
 	}
+}
+
+func TestGatherOSValues(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping test on non-Linux setups...")
+	}
+
+	etcDir, err := filepath.Abs(filepath.Join("testdata", "os-release"))
+	require.NoError(t, err)
+	t.Setenv("HOST_ETC", etcDir)
+
+	s := &System{
+		Include:    []string{"os"},
+		OSCacheTTL: config.Duration(8 * time.Hour),
+		Log:        &testutil.Logger{},
+	}
+	require.NoError(t, s.Init())
+
+	var acc testutil.Accumulator
+	require.NoError(t, s.Gather(&acc))
+
+	// arch and kernel_version come from uname(2) and depend on the host.
+	expected := []telegraf.Metric{
+		metric.New(
+			"system_os",
+			map[string]string{},
+			map[string]interface{}{
+				"os":               "linux",
+				"platform":         "telegraftest",
+				"platform_family":  "",
+				"platform_version": "1.0",
+			},
+			time.Unix(0, 0),
+			telegraf.Untyped,
+		),
+	}
+
+	actual := acc.GetTelegrafMetrics()
+	testutil.RequireMetricsEqual(t, expected, actual,
+		testutil.IgnoreTime(), testutil.IgnoreFields("arch", "kernel_version"))
+
+	require.Len(t, actual, 1)
+	arch, ok := actual[0].GetField("arch")
+	require.True(t, ok)
+	require.NotEmpty(t, arch)
+	kernelVersion, ok := actual[0].GetField("kernel_version")
+	require.True(t, ok)
+	require.NotEmpty(t, kernelVersion)
 }

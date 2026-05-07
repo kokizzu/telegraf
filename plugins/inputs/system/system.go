@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -24,8 +25,12 @@ import (
 var sampleConfig string
 
 type System struct {
-	Include []string        `toml:"include"`
-	Log     telegraf.Logger `toml:"-"`
+	Include    []string        `toml:"include"`
+	OSCacheTTL config.Duration `toml:"os_cache_ttl"`
+	Log        telegraf.Logger `toml:"-"`
+
+	osCache    map[string]interface{}
+	osCachedAt time.Time
 }
 
 func (*System) SampleConfig() string {
@@ -46,7 +51,7 @@ func (s *System) Init() error {
 			continue
 		}
 		switch incl {
-		case "load", "users", "cpus", "uptime":
+		case "load", "users", "cpus", "uptime", "os":
 		case "legacy_cpus":
 			if userSupplied {
 				config.PrintOptionValueDeprecationNotice(
@@ -97,6 +102,19 @@ func (s *System) Gather(acc telegraf.Accumulator) error {
 
 	for _, incl := range s.Include {
 		switch incl {
+		case "os":
+			if time.Since(s.osCachedAt) > time.Duration(s.OSCacheTTL) {
+				osCache, err := gatherOS()
+				if err != nil {
+					acc.AddError(err)
+				} else {
+					s.osCache = osCache
+					s.osCachedAt = now
+				}
+			}
+			if len(s.osCache) > 0 {
+				acc.AddFields("system_os", s.osCache, nil, now)
+			}
 		case "load":
 			loadavg, err := load.Avg()
 			if err != nil {
@@ -166,6 +184,36 @@ func (s *System) Gather(acc telegraf.Accumulator) error {
 	return nil
 }
 
+// gatherOS reads OS release and uname information via gopsutil, skipping
+// host.Info() to avoid the unrelated virtualization, boot-time and
+// process-count probes.
+func gatherOS() (map[string]interface{}, error) {
+	platform, family, version, err := host.PlatformInformation()
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading platform information: %w", err)
+	}
+	kernelVersion, err := host.KernelVersion()
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading kernel version: %w", err)
+	}
+	arch, err := host.KernelArch()
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading kernel architecture: %w", err)
+	}
+	if arch == "" {
+		arch = runtime.GOARCH
+	}
+
+	return map[string]interface{}{
+		"os":               runtime.GOOS,
+		"arch":             arch,
+		"platform":         platform,
+		"platform_family":  family,
+		"platform_version": version,
+		"kernel_version":   kernelVersion,
+	}, nil
+}
+
 func findUniqueUsers(userStats []host.UserStat) int {
 	uniqueUsers := make(map[string]bool)
 	for _, userstat := range userStats {
@@ -201,6 +249,8 @@ func formatUptime(uptime uint64) string {
 
 func init() {
 	inputs.Add("system", func() telegraf.Input {
-		return &System{}
+		return &System{
+			OSCacheTTL: config.Duration(8 * time.Hour),
+		}
 	})
 }

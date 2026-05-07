@@ -27,7 +27,14 @@ plugin ordering. See [CONFIGURATION.md][CONFIGURATION.md] for more details.
   ##   legacy_cpus      - legacy layout of CPU counts; see README for details
   ##   uptime           - system uptime
   ##   legacy_uptime    - legacy layout of system uptime; see README for details
+  ##   os               - operating system release and uname information
   # include = ["load", "users", "legacy_cpus", "legacy_uptime"]
+
+  ## How long to cache the result of the "os" group between gathers.
+  ## Set higher to reduce the number of os-release/uname reads, lower to
+  ## surface distro upgrades and kexec'd kernels faster. Set to zero to
+  ## re-read the data on every gather.
+  # os_cache_ttl = "8h"
 ```
 
 > [!NOTE]
@@ -52,12 +59,23 @@ The `n_unique_users` shows the count of unique usernames logged in. This way if
 a user has multiple sessions open/started they would only get counted once. The
 same requirements for `n_users` apply.
 
+The `os` group reads `/etc/os-release` on Linux (typically world-readable) and
+calls the `uname` syscall on POSIX systems. The `os` field is always populated
+from Go's runtime, and `arch` falls back to the runtime architecture when the
+kernel cannot be queried, so both are always present. On platforms where
+gopsutil cannot provide platform release or kernel data (e.g. parts of
+FreeBSD/OpenBSD/Solaris) the `platform`, `platform_family`, `platform_version`
+and `kernel_version` fields may be empty. Results are cached between gathers,
+see `os_cache_ttl` above.
+
 ## Metrics
 
-### `system`
+The `include` option controls which measurements and fields are gathered.
+The `load`, `users`, `cpus` / `legacy_cpus` and `uptime` / `legacy_uptime`
+groups populate the `system` measurement, while the `os` group emits a
+separate `system_os` measurement.
 
-All fields below belong to the `system` measurement. The `include` option
-controls which groups are gathered.
+### `system`
 
 | Field             | Include option             | Type    | Description                                 |
 |-------------------|----------------------------|---------|---------------------------------------------|
@@ -72,6 +90,23 @@ controls which groups are gathered.
 | `uptime`          | `uptime`                   | integer | System uptime in seconds (gauge field)      |
 | `uptime`          | `legacy_uptime`            | integer | System uptime in seconds (separate counter) |
 | `uptime_format`   | `legacy_uptime`            | string  | Human-readable uptime (deprecated)          |
+
+### `system_os`
+
+Emitted only when `os` is included. The values reflect operating system
+release information together with `uname`-style kernel data. Fields are
+reported as strings. The `os` and `arch` fields are always populated; the
+`platform`, `platform_family`, `platform_version` and `kernel_version` fields
+may be empty on platforms where gopsutil cannot determine them.
+
+| Field              | Type   | Description                                                          |
+|--------------------|--------|----------------------------------------------------------------------|
+| `os`               | string | Operating system family as reported by Go's runtime (e.g. `linux`)   |
+| `arch`             | string | Architecture as returned by `uname -m` (e.g. `x86_64`)               |
+| `platform`         | string | OS distribution / platform identifier (e.g. `ubuntu`, `centos`)      |
+| `platform_family`  | string | Platform family (e.g. `debian`, `rhel`)                              |
+| `platform_version` | string | Platform / distribution version (e.g. `26.04`)                       |
+| `kernel_version`   | string | Kernel release as returned by `uname -r` (e.g. `7.0.0-7-generic`)    |
 
 ## Example Output
 
@@ -93,4 +128,12 @@ in a single metric with the new field names:
 
 ```text
 system,host=worker-01 load1=3.72,load5=2.4,load15=2.1,n_users=3i,n_unique_users=2i,n_virtual_cpus=4i,n_physical_cpus=2i,uptime=1249632i 1748000000000000000
+```
+
+### OS information
+
+With `include = ["os"]`, a separate `system_os` measurement is emitted:
+
+```text
+system_os,host=worker-01 os="linux",arch="x86_64",platform="ubuntu",platform_family="debian",platform_version="26.04",kernel_version="7.0.0-7-generic" 1748000000000000000
 ```
