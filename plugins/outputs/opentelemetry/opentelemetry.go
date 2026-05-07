@@ -18,6 +18,7 @@ import (
 	"github.com/influxdata/telegraf"
 	"github.com/influxdata/telegraf/config"
 	"github.com/influxdata/telegraf/internal"
+	"github.com/influxdata/telegraf/plugins/common/proxy"
 	"github.com/influxdata/telegraf/plugins/common/tls"
 	"github.com/influxdata/telegraf/plugins/outputs"
 )
@@ -37,6 +38,8 @@ type OpenTelemetry struct {
 	Headers     map[string]string `toml:"headers"`
 	Attributes  map[string]string `toml:"attributes"`
 	Coralogix   *CoralogixConfig  `toml:"coralogix"`
+	proxy.HTTPProxy
+	proxy.TCPProxy
 
 	Log telegraf.Logger `toml:"-"`
 
@@ -49,6 +52,8 @@ type clientConfig struct {
 	TLSConfig       *tls.ClientConfig
 	Compression     string
 	CoralogixConfig *CoralogixConfig
+	HTTPProxy       *proxy.HTTPProxy  // only for HTTP client
+	TCPProxy        *proxy.TCPProxy   // only for gRPC client
 	Encoding        string            // only for HTTP client
 	Headers         map[string]string // only for HTTP client, gRPC client uses metadata
 }
@@ -118,6 +123,8 @@ func (o *OpenTelemetry) Connect() error {
 		TLSConfig:       &o.ClientConfig,
 		Compression:     o.Compression,
 		CoralogixConfig: o.Coralogix,
+		HTTPProxy:       &o.HTTPProxy,
+		TCPProxy:        &o.TCPProxy,
 		Encoding:        o.EncodingType,
 		Headers:         o.Headers,
 	}
