@@ -28,6 +28,7 @@ plugin ordering. See [CONFIGURATION.md][CONFIGURATION.md] for more details.
   ##   uptime           - system uptime
   ##   legacy_uptime    - legacy layout of system uptime; see README for details
   ##   os               - operating system release and uname information
+  ##   dmi              - BIOS, baseboard, chassis and product information from DMI/SMBIOS
   # include = ["load", "users", "legacy_cpus", "legacy_uptime"]
 
   ## How long to cache the result of the "os" group between gathers.
@@ -35,6 +36,11 @@ plugin ordering. See [CONFIGURATION.md][CONFIGURATION.md] for more details.
   ## surface distro upgrades and kexec'd kernels faster. Set to zero to
   ## re-read the data on every gather.
   # os_cache_ttl = "8h"
+
+  ## How long to cache the result of the "dmi" group between gathers.
+  ## DMI/SMBIOS data is effectively static for the life of the machine,
+  ## so a long cache is typical. Set to zero to re-read on every gather.
+  # dmi_cache_ttl = "8h"
 ```
 
 > [!NOTE]
@@ -67,6 +73,13 @@ gopsutil cannot provide platform release or kernel data (e.g. parts of
 FreeBSD/OpenBSD/Solaris) the `platform`, `platform_family`, `platform_version`
 and `kernel_version` fields may be empty. Results are cached between gathers,
 see `os_cache_ttl` above.
+
+The `dmi` group exposes BIOS, baseboard, chassis and product information from
+DMI/SMBIOS. On Linux the data is read from `/sys/class/dmi/id/` and does not
+require root access for most fields; serial numbers and asset tags are
+generally restricted by the kernel. On Windows the data is read via WMI.
+macOS, BSD and Solaris are not supported and the `dmi` value is ignored
+there. Results are cached between gathers, see `dmi_cache_ttl` above.
 
 ## Metrics
 
@@ -108,6 +121,38 @@ may be empty on platforms where gopsutil cannot determine them.
 | `platform_version` | string | Platform / distribution version (e.g. `26.04`)                       |
 | `kernel_version`   | string | Kernel release as returned by `uname -r` (e.g. `7.0.0-7-generic`)    |
 
+### `system_dmi`
+
+Emitted only when `dmi` is included. All fields are reported as strings
+with the values returned by the underlying source: an empty string when
+the field is not exposed by the system, or `unknown` when it is restricted
+by the kernel (typical for serial numbers, asset tags and the product
+UUID on Linux without root).
+
+| Field                      | Type   | Description                                                          |
+|----------------------------|--------|----------------------------------------------------------------------|
+| `bios_vendor`              | string | BIOS vendor (e.g. `Dell Inc.`)                                       |
+| `bios_version`             | string | BIOS version (e.g. `2.18.0`)                                         |
+| `bios_date`                | string | BIOS release date (e.g. `04/12/2024`)                                |
+| `board_vendor`             | string | Baseboard / motherboard vendor                                       |
+| `board_product`            | string | Baseboard product name (e.g. `0X3D66`)                               |
+| `board_version`            | string | Baseboard version                                                    |
+| `board_serial`             | string | Baseboard serial number (kernel-restricted on Linux)                 |
+| `board_asset_tag`          | string | Baseboard asset tag (kernel-restricted on Linux)                     |
+| `chassis_vendor`           | string | Chassis vendor                                                       |
+| `chassis_type`             | string | Chassis type code as defined by SMBIOS DSP0134 (e.g. `3`, `10`)      |
+| `chassis_type_description` | string | Human-readable chassis type description (e.g. `Desktop`, `Notebook`) |
+| `chassis_version`          | string | Chassis version                                                      |
+| `chassis_serial`           | string | Chassis serial number (kernel-restricted on Linux)                   |
+| `chassis_asset_tag`        | string | Chassis asset tag (kernel-restricted on Linux)                       |
+| `product_vendor`           | string | System product vendor (e.g. `Dell Inc.`)                             |
+| `product_name`             | string | System product name (e.g. `PowerEdge R750`)                          |
+| `product_family`           | string | System product family                                                |
+| `product_version`          | string | System product version                                               |
+| `product_serial`           | string | System product serial number (kernel-restricted on Linux)            |
+| `product_sku`              | string | System product SKU                                                   |
+| `product_uuid`             | string | System product UUID (kernel-restricted on Linux)                     |
+
 ## Example Output
 
 ### Default configuration
@@ -136,4 +181,22 @@ With `include = ["os"]`, a separate `system_os` measurement is emitted:
 
 ```text
 system_os,host=worker-01 os="linux",arch="x86_64",platform="ubuntu",platform_family="debian",platform_version="26.04",kernel_version="7.0.0-7-generic" 1748000000000000000
+```
+
+### DMI information
+
+With `include = ["dmi"]`, a separate `system_dmi` measurement is emitted.
+When telegraf has access to all DMI fields (e.g. running as root or with
+`CAP_SYS_ADMIN` on Linux), the metric carries the full information:
+
+```text
+system_dmi,host=worker-01 bios_vendor="Dell Inc.",bios_version="2.18.0",bios_date="04/12/2024",board_vendor="Dell Inc.",board_product="0X3D66",board_version="A00",board_serial="CN747503AB0123",board_asset_tag="",chassis_vendor="Dell Inc.",chassis_type="23",chassis_type_description="Rack mount chassis",chassis_version="",chassis_serial="7XK4P03",chassis_asset_tag="",product_vendor="Dell Inc.",product_name="PowerEdge R750",product_family="PowerEdge",product_version="",product_serial="7XK4P03",product_sku="SKU=NotProvided;ModelName=PowerEdge R750",product_uuid="4c4c4544-0058-4b10-8034-b3c04f503033" 1748000000000000000
+```
+
+When telegraf runs without privileges to read kernel-restricted DMI fields,
+those fields are reported as `unknown` instead. This is the typical case
+when telegraf runs as a regular user on Linux:
+
+```text
+system_dmi,host=worker-01 bios_vendor="Dell Inc.",bios_version="2.18.0",bios_date="04/12/2024",board_vendor="Dell Inc.",board_product="0X3D66",board_version="A00",board_serial="unknown",board_asset_tag="",chassis_vendor="Dell Inc.",chassis_type="23",chassis_type_description="Rack mount chassis",chassis_version="",chassis_serial="unknown",chassis_asset_tag="",product_vendor="Dell Inc.",product_name="PowerEdge R750",product_family="PowerEdge",product_version="",product_serial="unknown",product_sku="SKU=NotProvided;ModelName=PowerEdge R750",product_uuid="unknown" 1748000000000000000
 ```

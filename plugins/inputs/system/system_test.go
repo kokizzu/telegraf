@@ -78,8 +78,8 @@ func TestInitAllValidOptions(t *testing.T) {
 		name    string
 		include []string
 	}{
-		{"new", []string{"load", "users", "cpus", "uptime", "os"}},
-		{"legacy", []string{"load", "users", "legacy_cpus", "legacy_uptime", "os"}},
+		{"new", []string{"load", "users", "cpus", "uptime", "os", "dmi"}},
+		{"legacy", []string{"load", "users", "legacy_cpus", "legacy_uptime", "os", "dmi"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -356,4 +356,63 @@ func TestGatherOSValues(t *testing.T) {
 	kernelVersion, ok := actual[0].GetField("kernel_version")
 	require.True(t, ok)
 	require.NotEmpty(t, kernelVersion)
+}
+
+func TestGatherDMIValues(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Skipping test on non-Linux setups...")
+	}
+
+	chroot, err := filepath.Abs(filepath.Join("testdata", "dmi"))
+	require.NoError(t, err)
+	t.Setenv("GHW_CHROOT", chroot)
+
+	s := &System{
+		Include:     []string{"dmi"},
+		DMICacheTTL: config.Duration(8 * time.Hour),
+		Log:         &testutil.Logger{},
+	}
+	require.NoError(t, s.Init())
+
+	expected := metric.New(
+		"system_dmi",
+		nil,
+		map[string]interface{}{
+			"bios_vendor":              "Telegraf BIOS, Inc.",
+			"bios_version":             "1.2.3",
+			"bios_date":                "01/01/2026",
+			"board_vendor":             "Telegraf Boards Co.",
+			"board_product":            "TG-BOARD-X1",
+			"board_version":            "A1",
+			"board_serial":             "BS-1234",
+			"board_asset_tag":          "ASSET-A",
+			"chassis_vendor":           "Telegraf Chassis Ltd.",
+			"chassis_type":             "3",
+			"chassis_type_description": "Desktop",
+			"chassis_version":          "v0",
+			"chassis_serial":           "CS-5678",
+			"chassis_asset_tag":        "ASSET-C",
+			"product_vendor":           "Telegraf Systems",
+			"product_name":             "TG-Server-9000",
+			"product_family":           "TG-Server",
+			"product_version":          "v9",
+			"product_serial":           "PS-9999",
+			"product_sku":              "SKU-XYZ",
+			"product_uuid":             "00000000-0000-0000-0000-000000000001",
+		},
+		time.Unix(0, 0),
+	)
+
+	var acc testutil.Accumulator
+	require.NoError(t, s.Gather(&acc))
+	firstCachedAt := s.dmiCachedAt
+	require.False(t, firstCachedAt.IsZero())
+
+	// A second gather within the TTL must reuse the cached fields and
+	// must not re-read DMI from the system.
+	require.NoError(t, s.Gather(&acc))
+	require.Equal(t, firstCachedAt, s.dmiCachedAt)
+
+	expected2 := []telegraf.Metric{expected, expected}
+	testutil.RequireMetricsEqual(t, expected2, acc.GetTelegrafMetrics(), testutil.IgnoreTime())
 }

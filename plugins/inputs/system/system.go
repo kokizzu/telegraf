@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jaypipes/ghw"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/host"
 	"github.com/shirou/gopsutil/v4/load"
@@ -25,12 +26,16 @@ import (
 var sampleConfig string
 
 type System struct {
-	Include    []string        `toml:"include"`
-	OSCacheTTL config.Duration `toml:"os_cache_ttl"`
-	Log        telegraf.Logger `toml:"-"`
+	Include     []string        `toml:"include"`
+	OSCacheTTL  config.Duration `toml:"os_cache_ttl"`
+	DMICacheTTL config.Duration `toml:"dmi_cache_ttl"`
+	Log         telegraf.Logger `toml:"-"`
 
-	osCache    map[string]interface{}
-	osCachedAt time.Time
+	osCache     map[string]interface{}
+	osCachedAt  time.Time
+	dmiFields   map[string]interface{}
+	dmiCachedAt time.Time
+	dmiEnabled  bool
 }
 
 func (*System) SampleConfig() string {
@@ -51,7 +56,7 @@ func (s *System) Init() error {
 			continue
 		}
 		switch incl {
-		case "load", "users", "cpus", "uptime", "os":
+		case "load", "users", "cpus", "uptime", "os", "dmi":
 		case "legacy_cpus":
 			if userSupplied {
 				config.PrintOptionValueDeprecationNotice(
@@ -93,6 +98,14 @@ func (s *System) Init() error {
 		return errors.New(`"uptime" and "legacy_uptime" are mutually exclusive`)
 	}
 
+	if enabled["dmi"] {
+		if dmiSupported {
+			s.dmiEnabled = true
+		} else {
+			s.Log.Warn("'dmi' is not supported on this platform, ignoring")
+		}
+	}
+
 	return nil
 }
 
@@ -114,6 +127,22 @@ func (s *System) Gather(acc telegraf.Accumulator) error {
 			}
 			if len(s.osCache) > 0 {
 				acc.AddFields("system_os", s.osCache, nil, now)
+			}
+		case "dmi":
+			if !s.dmiEnabled {
+				continue
+			}
+			if time.Since(s.dmiCachedAt) > time.Duration(s.DMICacheTTL) {
+				dmiFields, err := gatherDMI()
+				if err != nil {
+					acc.AddError(err)
+				} else {
+					s.dmiFields = dmiFields
+					s.dmiCachedAt = now
+				}
+			}
+			if len(s.dmiFields) > 0 {
+				acc.AddFields("system_dmi", s.dmiFields, nil, now)
 			}
 		case "load":
 			loadavg, err := load.Avg()
@@ -214,6 +243,66 @@ func gatherOS() (map[string]interface{}, error) {
 	}, nil
 }
 
+// gatherDMI reads BIOS, baseboard, chassis and product DMI/SMBIOS information.
+func gatherDMI() (map[string]interface{}, error) {
+	ctx := ghw.ContextFromEnv()
+	ctx = ghw.WithDisableWarnings()(ctx)
+	ctx = ghw.WithDisableTools()(ctx)
+
+	fields := make(map[string]interface{}, 21)
+
+	bios, err := ghw.BIOS(ctx)
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading BIOS information: %w", err)
+	}
+	if bios != nil {
+		fields["bios_vendor"] = bios.Vendor
+		fields["bios_version"] = bios.Version
+		fields["bios_date"] = bios.Date
+	}
+
+	bb, err := ghw.Baseboard(ctx)
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading baseboard information: %w", err)
+	}
+	if bb != nil {
+		fields["board_vendor"] = bb.Vendor
+		fields["board_product"] = bb.Product
+		fields["board_version"] = bb.Version
+		fields["board_serial"] = bb.SerialNumber
+		fields["board_asset_tag"] = bb.AssetTag
+	}
+
+	ch, err := ghw.Chassis(ctx)
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading chassis information: %w", err)
+	}
+	if ch != nil {
+		fields["chassis_vendor"] = ch.Vendor
+		fields["chassis_type"] = ch.Type
+		fields["chassis_type_description"] = ch.TypeDescription
+		fields["chassis_version"] = ch.Version
+		fields["chassis_serial"] = ch.SerialNumber
+		fields["chassis_asset_tag"] = ch.AssetTag
+	}
+
+	prod, err := ghw.Product(ctx)
+	if err != nil && !strings.Contains(err.Error(), "not implemented") {
+		return nil, fmt.Errorf("reading product information: %w", err)
+	}
+	if prod != nil {
+		fields["product_vendor"] = prod.Vendor
+		fields["product_name"] = prod.Name
+		fields["product_family"] = prod.Family
+		fields["product_version"] = prod.Version
+		fields["product_serial"] = prod.SerialNumber
+		fields["product_sku"] = prod.SKU
+		fields["product_uuid"] = prod.UUID
+	}
+
+	return fields, nil
+}
+
 func findUniqueUsers(userStats []host.UserStat) int {
 	uniqueUsers := make(map[string]bool)
 	for _, userstat := range userStats {
@@ -250,7 +339,8 @@ func formatUptime(uptime uint64) string {
 func init() {
 	inputs.Add("system", func() telegraf.Input {
 		return &System{
-			OSCacheTTL: config.Duration(8 * time.Hour),
+			OSCacheTTL:  config.Duration(8 * time.Hour),
+			DMICacheTTL: config.Duration(8 * time.Hour),
 		}
 	})
 }
